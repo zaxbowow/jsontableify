@@ -17,6 +17,11 @@
   * Hide few labels from table.
   * Replace text
   * Define section headers / main json keys
+  * Replace field values 
+
+* `toHTML(<json_object>,<json_schema>)`: converts json to html code using schema.
+  * Use schema title fields as source for replace text
+  * Use titles from oneOf sub schemas to replace json field values
 
 ## Usage
 
@@ -28,6 +33,14 @@ const { html } = new Jsontableify({
   excludeKeys: ['Current CTC'], // optional - these fields will not be displayed
 }).toHtml(<JSON object>)
 ```
+
+```
+const { html } = new Jsontableify({
+  headerList: ['Test Result Header', 'Samples', 'Calibration Result'], // optional - will be shown as header to table
+  excludeKeys: ['Current CTC'], // optional - these fields will not be displayed
+}).toHtml(<JSON object>,<JSON schmea>)
+```
+
 
 ### Example
 ```
@@ -90,6 +103,8 @@ const { html } = new Jsontableify({
 ### Output
 
 HTML table ![JsonTableify](examples/toHtml.png)
+
+HTML table ![JsonTableify](examples/toHTMLusingSchema.png)
 
 ### CSS for HTML code
 

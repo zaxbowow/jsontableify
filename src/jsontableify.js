@@ -223,6 +223,91 @@ class Jsontableify {
       html,
     };
   }
+
+    toHtml(jsonData, jsonSchema) {
+
+        this.replaceTextMap = getFieldTitles(jsonData, jsonSchema);
+
+        // Replace field values with titles
+        replaceFieldValuesWithTitles(jsonData, jsonSchema, jsonSchema);
+
+        const html = this.jsonToHtml(jsonData);
+
+        return {
+            html,
+        };
+    }
 }
+
+// Function to get titles for each field from the JSON schema
+function getFieldTitles(jsonData, jsonSchema) {
+    const fieldTitles = {};
+    for (const key in jsonData) {
+        //const fullKey = parentKey ? `${parentKey}.${key}` : key;
+        if (jsonSchema.properties && jsonSchema.properties[key]) {
+            if (jsonSchema.properties[key].title) {
+                //fieldTitles[fullKey] = jsonSchema.properties[key].title;
+                fieldTitles[key] = jsonSchema.properties[key].title;
+            }
+            if (jsonSchema.properties[key].type === 'object') {
+                //const nestedTitles = getFieldTitles(jsonData[key], jsonSchema.properties[key], fullKey);
+                const nestedTitles = getFieldTitles(jsonData[key], jsonSchema.properties[key]);
+                Object.assign(fieldTitles, nestedTitles);
+            } else if (jsonSchema.properties[key].type === 'array' && Array.isArray(jsonData[key])) {
+                //const arrayTitles = jsonData[key].map((item, index) => getFieldTitles(item, jsonSchema.properties[key].items, `${fullKey}[${index}]`));
+                const arrayTitles = jsonData[key].map((item, index) => getFieldTitles(item, jsonSchema.properties[key].items));
+                arrayTitles.forEach((titles) => Object.assign(fieldTitles, titles));
+            }
+        }
+    }
+    return fieldTitles;
+}
+
+// Function to resolve $ref
+function resolveRef(ref, schema) {
+    const parts = ref.split('/');
+    let current = schema;
+    for (let part of parts) {
+        if (part === '#') continue;
+        current = current[part];
+    }
+    return current;
+}
+
+
+// Function to replace JSON field values with titles from schema recursively
+function replaceFieldValuesWithTitles(jsonData, jsonSchema, rootSchema) {
+    for (const key in jsonData) {
+        if (jsonSchema.properties && jsonSchema.properties[key]) {
+            const propertySchema = jsonSchema.properties[key];
+            if (propertySchema.allOf && propertySchema.allOf.length === 1 && propertySchema.allOf[0].$ref) {
+                const resolvedSchema = resolveRef(propertySchema.allOf[0].$ref, rootSchema);
+                replaceFieldValueWithRef(jsonData, key, resolvedSchema);
+            } else if (propertySchema.oneOf && Array.isArray(propertySchema.oneOf)) {
+                for (const option of propertySchema.oneOf) {
+                    if (option.const === jsonData[key]) {
+                        jsonData[key] = option.title || '';
+                        break;
+                    }
+                }
+            } else if (propertySchema.type === 'object' && typeof jsonData[key] === 'object') {
+                replaceFieldValuesWithTitles(jsonData[key], propertySchema, rootSchema);
+            }
+        }
+    }
+}
+
+// Function to replace field value with title from resolved schema
+function replaceFieldValueWithRef(jsonData, key, resolvedSchema) {
+    if (resolvedSchema && resolvedSchema.oneOf && Array.isArray(resolvedSchema.oneOf)) {
+        for (const option of resolvedSchema.oneOf) {
+            if (option.const === jsonData[key]) {
+                jsonData[key] = option.title || '';
+                break;
+            }
+        }
+    }
+}
+
 
 module.exports = Jsontableify;
