@@ -1,0 +1,42 @@
+{
+  "head": {
+    "tsn": 0,
+    "tid": 862,
+    "sn": "000001",
+    "ityp": "NXT",
+    "sid": "IX99999-01",
+    "fcid": "Dummy1",
+    "fcsn": "Dummy2",
+    "td": "2024-04-01T14:48:05-05:00",
+    "ttyp": "AC",
+    "temp": 240,
+    "bat": 0
+  },
+  "sample": [
+    {
+      "id": 1,
+      "saty": 2,
+      "time": "14:48:22-05:00",
+      "temp": -2731,
+      "baro": 500,
+      "alc": "0.0084",
+      "alcunit": "g/210L",
+      "res": 0,
+      "vol": 1,
+      "peak": 4,
+      "peak2": 5,
+      "peak4": 6,
+      "peakT": 65537,
+      "peakT2": 131074,
+      "peakT4": 196611,
+      "p4Res": 0,
+      "jhs": 0,
+      "inte": 17180131332,
+      "base": 9,
+      "btim": 10,
+      "stdtype": 0,
+      "att": 1
+    }
+  ],
+  "stat": 0
+}

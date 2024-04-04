@@ -226,10 +226,14 @@ class Jsontableify {
 
     toHtml(jsonData, jsonSchema) {
 
+        // Replace field names with titles
         this.replaceTextMap = getFieldTitles(jsonData, jsonSchema);
 
-        // Replace field values with titles
+        // Replace field values with titles, where defined
         replaceFieldValuesWithTitles(jsonData, jsonSchema, jsonSchema);
+
+        // Get header list from top level objects
+        this.headerList = getHeaderList(jsonData, jsonSchema);
 
         const html = this.jsonToHtml(jsonData);
 
@@ -237,6 +241,7 @@ class Jsontableify {
             html,
         };
     }
+
 }
 
 // Function to get titles for each field from the JSON schema
@@ -307,6 +312,22 @@ function replaceFieldValueWithRef(jsonData, key, resolvedSchema) {
             }
         }
     }
+}
+
+// Function to get headerList from top level objects / object arrays
+function getHeaderList(jsonData, jsonSchema) {
+    headerList = [];
+    for (const key in jsonData) {
+        if (jsonSchema.properties && jsonSchema.properties[key]) {
+            const propertySchema = jsonSchema.properties[key];
+            if (propertySchema.type === 'object' && typeof jsonData[key] === 'object') {
+                headerList.push(key);
+            } else if (jsonSchema.properties[key].type === 'array' && Array.isArray(jsonData[key])) {
+                headerList.push(key);
+            }
+        }
+    }
+    return headerList;
 }
 
 
