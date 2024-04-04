@@ -96,7 +96,7 @@ const { html } = new Jsontableify({
 ## Usage - with Schema
 
 ```
-const { html } = new Jsontableify().toHtml(<JSON object>,<JSON schmea>)
+const { html } = new Jsontableify().toHtml(<JSON object>,<JSON schema>)
 ```
 
 ### Example 2 - with schema
@@ -112,9 +112,11 @@ SCHEMA:
 ```
 
 
-### Output
+### Output - Example 1
 
 HTML table ![JsonTableify](examples/toHtml.png)
+
+### Output - Example 2
 
 HTML table ![JsonTableify](examples/toHTMLusingSchema.png)
 
