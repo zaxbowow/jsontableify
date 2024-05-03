@@ -1,334 +1,356 @@
-const moment = require('moment');
-
-function isValidDate(date) {
-  const regExp = new RegExp('^(-?(?:[1-9][0-9]*)?[0-9]{4})-(1[0-2]|0[1-9])-(3[01]|0[1-9]|[12][0-9])T(2[0-3]|[01][0-9]):([0-5][0-9]):([0-5][0-9])(.[0-9]+)?(Z)?$');
-
-  return regExp.test(date);
-}
-
 const capitalize = (s) => {
-  if (typeof s !== 'string') return '';
-  return s.charAt(0).toUpperCase() + s.slice(1);
+    if (typeof s !== 'string') return '';
+    return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
 function convert(key) {
-  return capitalize(key.replace(/([a-z])([A-Z])/g, '$1 $2'));
+    return capitalize(key.replace(/([a-z])([A-Z])/g, '$1 $2'));
 }
 
 class Jsontableify {
-  constructor(config = {}) {
-    const {
-      headerList = [], dateFormat = 'DD-MM-YYYY',
-      replaceTextMap = {}, excludeKeys = [],
-    } = config;
+    constructor(config = {}) {
+        const {
+            headerList = [], dateFormatMap = {},
+            replaceTextMap = {}, excludeKeys = []
+        } = config;
 
-    this.dateFormat = dateFormat;
-    this.headerList = headerList;
-    this.replaceTextMap = replaceTextMap;
-    this.excludeKeys = excludeKeys;
-  }
-
-  toDate(date) {
-    return moment(new Date(date)).format(this.dateFormat);
-  }
-
-  jsonToHtml(obj, columns, parentsTmp) {
-    const buf = [];
-    const type = typeof obj;
-    let cols;
-
-    const parents = parentsTmp || [];
-
-    if (!(type !== 'object' || obj == null || obj === undefined)) {
-      // eslint-disable-next-line no-bitwise
-      if (~parents.indexOf(obj)) {
-        return '[Circular]';
-      }
-
-      parents.push(obj);
+        this.headerList = headerList;
+        this.dateFormatMap = dateFormatMap;
+        this.replaceTextMap = replaceTextMap;
+        this.excludeKeys = excludeKeys;
     }
 
-    if (Array.isArray(obj)) {
-      if (Array.isArray(obj[0]) && obj.every(Array.isArray)) { // array of array
-        buf.push('<table>', '<tbody>');
-        cols = [];
+    jsonToHtml(obj, columns, parentsTmp, path = '') {
+        const buf = [];
+        const type = typeof obj;
+        let cols;
+        var mypath = '';
 
-        obj.forEach((row, ix) => {
-          cols.push(ix);
+        const parents = parentsTmp || [];
 
-          row.forEach((val) => {
-            buf.push('<tr><td>', this.jsonToHtml(val, cols, parents), '</td></tr>');
-          });
-        });
-
-        buf.push('</tbody>', '</table>');
-      } else if (typeof obj[0] === 'object') { // array of objects
-        const tmpBuf = [];
-        let isNodeEmpty = true;
-        tmpBuf.push('<table>', '<tbody>');
-        tmpBuf.push('<tr><td>');
-
-        obj.forEach((o, i) => {
-          if (typeof o === 'object' && !Array.isArray(o)) {
-            if (i && !isNodeEmpty) tmpBuf.push('<hr/>');
-
-            tmpBuf.push('<table>');
-            Object.keys(o)
-              .filter(x => (!this.excludeKeys.includes(x)))
-              .forEach((k) => {
-                const val = o[k];
-
-                if (val) {
-                  isNodeEmpty = false;
-                  let label = this.replaceTextMap[k] ? this.replaceTextMap[k] : k;
-                  label = convert(label);
-
-                  tmpBuf.push('<tr><th>', label, '</th>');
-                  tmpBuf.push(
-                    '<td>',
-                    isValidDate(val) ? this.toDate(val) : this.jsonToHtml(val, cols, parents),
-                    '</td></tr>',
-                  );
-                }
-              });
-            tmpBuf.push('</table>');
-          }
-        });
-
-        tmpBuf.push('</td></tr>', '</tbody></table>');
-
-        if (!isNodeEmpty) {
-          buf.push(...tmpBuf);
-        }
-      } else { // array of primitives
-        buf.push('<table>', '<tbody>');
-        cols = [];
-
-        obj.forEach((val, ix) => {
-          cols.push(ix);
-          buf.push('<tr>', '<td>', this.jsonToHtml(val, cols, parents), '</td>', '</tr>');
-        });
-
-        buf.push('</tbody>', '</table>');
-      }
-    } else if (
-      obj && typeof obj === 'object' && !Array.isArray(obj) && !(obj instanceof Date)
-    ) { // object
-      const tmpBuf = [];
-      let isNodeEmpty = true;
-
-      if (!columns) {
-        tmpBuf.push('<table>');
-        if (obj.type === 'link') {
-          isNodeEmpty = false;
-          let files = obj.value;
-
-          if (!Array.isArray(files)) {
-            files = [files];
-          }
-
-          tmpBuf.push('<td><table>');
-
-          // eslint-disable-next-line no-restricted-syntax
-          for (const { link, name } of files) {
-            tmpBuf.push('<tr><td>');
-            tmpBuf.push(`<a href='${link}' target='_blank'>${name}</a></td></tr>`);
-          }
-
-          tmpBuf.push('</table></td>');
-        } else {
-          const keys = Object.keys(obj)
-            .filter(x => (!this.excludeKeys.includes(x)));
-
-          // eslint-disable-next-line no-restricted-syntax
-          for (const key of keys) {
-            let label = this.replaceTextMap[key] ? this.replaceTextMap[key] : key;
-            label = convert(label);
-
-            if (key === 'link') {
-              isNodeEmpty = false;
-              const files = obj[key];
-
-              tmpBuf.push(
-                "<tr class='no-break'><th>",
-                label,
-                '</th>',
-                '<td><table>',
-              );
-
-              // eslint-disable-next-line no-restricted-syntax
-              for (const { link, name } of files) {
-                tmpBuf.push('<tr><td>');
-                tmpBuf.push(`<a href='${link}' target=_blank'>${name}</a>`);
-                tmpBuf.push('</td></tr>');
-              }
-
-              tmpBuf.push('</table></td></tr>');
-            } else {
-              const x = this.jsonToHtml(obj[key], false, parents);
-
-              if (x) {
-                isNodeEmpty = false;
-
-                if (this.headerList.includes(key)) {
-                  tmpBuf.push(
-                    "<tr class='allow-break'>",
-                    "<tr><th class='thead' colspan=2>", label, '</th></tr></td>',
-                    '<td colspan=2>', x, '</td>',
-                    '</tr>',
-                  );
-                } else {
-                  tmpBuf.push(
-                    "<tr class='no-break'><th>",
-                    label,
-                    '</th><td>', x, '</td></tr>',
-                  );
-                }
-              }
+        if (!(type !== 'object' || obj == null || obj === undefined)) {
+            // eslint-disable-next-line no-bitwise
+            if (~parents.indexOf(obj)) {
+                return '[Circular]';
             }
-          }
+
+            parents.push(obj);
         }
 
-        tmpBuf.push('</table>');
+        if (Array.isArray(obj)) {
+            if (Array.isArray(obj[0]) && obj.every(Array.isArray)) { // array of array
+                buf.push('<table>', '<tbody>');
+                cols = [];
 
-        if (!isNodeEmpty) {
-          buf.push(...tmpBuf);
+                obj.forEach((row, ix) => {
+                    cols.push(ix);
+
+                    row.forEach((val) => {
+                        buf.push('<tr><td>', this.jsonToHtml(val, cols, parents), '</td></tr>');
+                    });
+                });
+
+                buf.push('</tbody>', '</table>');
+            } else if (typeof obj[0] === 'object') { // array of objects
+                const tmpBuf = [];
+                let isNodeEmpty = true;
+                tmpBuf.push('<table>', '<tbody>');
+                tmpBuf.push('<tr><td>');
+
+                obj.forEach((o, i) => {
+                    if (typeof o === 'object' && !Array.isArray(o)) {
+                        if (i && !isNodeEmpty) tmpBuf.push('<hr/>');
+
+                        tmpBuf.push('<table>');
+                        Object.keys(o)
+                            .filter(x => (!this.excludeKeys.includes(x)))
+                            .forEach((k) => {
+                                const val = o[k];
+
+                                if (val) {
+                                    mypath = path + '.' + k
+                                    let pathkey = mypath.substr(1);
+
+                                    isNodeEmpty = false;
+                                    let label = this.replaceTextMap[pathkey] ? this.replaceTextMap[pathkey] : k;
+                                    let format = this.dateFormatMap[pathkey] ? ' data-format="' + this.dateFormatMap[pathkey] + '"' : '';
+
+                                    tmpBuf.push('<tr><th>', label, '</th>');
+                                    tmpBuf.push(
+                                        '<td data-key="' + pathkey + '"' + format + '>',
+                                        this.jsonToHtml(val, cols, parents, mypath),
+                                        '</td></tr>',
+                                    );
+                                }
+                            });
+                        tmpBuf.push('</table>');
+                    }
+                });
+
+                tmpBuf.push('</td></tr>', '</tbody></table>');
+
+                if (!isNodeEmpty) {
+                    buf.push(...tmpBuf);
+                }
+            } else { // array of primitives
+                buf.push('<table>', '<tbody>');
+                cols = [];
+
+                obj.forEach((val, ix) => {
+                    cols.push(ix);
+                    buf.push('<tr>', '<td>', this.jsonToHtml(val, cols, parents, mypath), '</td>', '</tr>');
+                });
+
+                buf.push('</tbody>', '</table>');
+            }
+        } else if (
+            obj && typeof obj === 'object' && !Array.isArray(obj) && !(obj instanceof Date)
+        ) { // object
+            const tmpBuf = [];
+            let isNodeEmpty = true;
+
+            if (!columns) {
+                tmpBuf.push('<table>');
+                if (obj.type === 'link') {
+                    isNodeEmpty = false;
+                    let files = obj.value;
+
+                    if (!Array.isArray(files)) {
+                        files = [files];
+                    }
+
+                    tmpBuf.push('<td><table>');
+
+                    // eslint-disable-next-line no-restricted-syntax
+                    for (const { link, name } of files) {
+                        tmpBuf.push('<tr><td>');
+                        tmpBuf.push(`<a href='${link}' target='_blank'>${name}</a></td></tr>`);
+                    }
+
+                    tmpBuf.push('</table></td>');
+                } else {
+                    const keys = Object.keys(obj)
+                        .filter(x => (!this.excludeKeys.includes(x)));
+
+                    // eslint-disable-next-line no-restricted-syntax
+                    for (const key of keys) {
+                        mypath = path + '.' + key
+                        let pathkey = mypath.substr(1);
+
+                        let label = this.replaceTextMap[pathkey] ? this.replaceTextMap[pathkey] : key;
+                        //label = convert(label);
+                        let format = this.dateFormatMap[pathkey] ? ' data-format="' + this.dateFormatMap[pathkey] + '"' : '';
+
+
+                        if (key === 'link') {
+                            isNodeEmpty = false;
+                            const files = obj[key];
+
+                            tmpBuf.push(
+                                "<tr class='no-break'><th>",
+                                label,
+                                '</th>',
+                                '<td><table>',
+                            );
+
+                            // eslint-disable-next-line no-restricted-syntax
+                            for (const { link, name } of files) {
+                                tmpBuf.push('<tr><td>');
+                                tmpBuf.push(`<a href='${link}' target=_blank'>${name}</a>`);
+                                tmpBuf.push('</td></tr>');
+                            }
+
+                            tmpBuf.push('</table></td></tr>');
+                        } else {
+                            const x = this.jsonToHtml(obj[key], false, parents, mypath);
+
+                            if (x) {
+                                isNodeEmpty = false;
+
+                                if (this.headerList.includes(key)) {
+                                    tmpBuf.push(
+                                        "<tr class='allow-break'>",
+                                        "<tr><th class='thead' colspan=2 data-key='" + pathkey + "'" + format + ">", label, '</th></tr></td>',
+                                        '<td colspan=2>', x, '</td>',
+                                        '</tr>',
+                                    );
+                                } else {
+                                    tmpBuf.push(
+                                        "<tr class='no-break'><th>",
+                                        label,
+                                        '</th><td data-key="' + pathkey + '"' + format + '>', x, '</td></tr>',
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+
+                tmpBuf.push('</table>');
+
+                if (!isNodeEmpty) {
+                    buf.push(...tmpBuf);
+                }
+            } else {
+                columns.forEach((key) => {
+                    if (typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+                        buf.push('<td>', this.jsonToHtml(obj[key], false, parents, mypath), '</td>');
+                    } else {
+                        buf.push('<td>', this.jsonToHtml(obj[key], columns, parents, mypath), '</td>');
+                    }
+                });
+            }
+        } else {
+            buf.push(obj);
         }
-      } else {
-        columns.forEach((key) => {
-          if (typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
-            buf.push('<td>', this.jsonToHtml(obj[key], false, parents), '</td>');
-          } else {
-            buf.push('<td>', this.jsonToHtml(obj[key], columns, parents), '</td>');
-          }
-        });
-      }
-    } else if (isValidDate(obj)) {
-      buf.push(this.toDate(obj));
-    } else {
-      buf.push(obj);
+
+        if (!(type !== 'object' || obj == null || obj === undefined)) {
+            parents.pop(obj);
+        }
+
+        return buf.join('');
     }
 
-    if (!(type !== 'object' || obj == null || obj === undefined)) {
-      parents.pop(obj);
-    }
-
-    return buf.join('');
-  }
-
-  toHtml(obj) {
-    const html = this.jsonToHtml(obj);
-
-    return {
-      html,
-    };
-  }
-
-    toHtml(jsonData, jsonSchema) {
-
-        // Replace field names with titles
-        this.replaceTextMap = getFieldTitles(jsonData, jsonSchema);
-
-        // Replace field values with titles, where defined
-        replaceFieldValuesWithTitles(jsonData, jsonSchema, jsonSchema);
-
-        // Get header list from top level objects
-        this.headerList = getHeaderList(jsonData, jsonSchema);
-
-        const html = this.jsonToHtml(jsonData);
+    toHtml(obj) {
+        const html = this.jsonToHtml(obj);
 
         return {
             html,
         };
     }
 
-}
+    toHtml(jsonData, jsonSchema) {
 
-// Function to get titles for each field from the JSON schema
-function getFieldTitles(jsonData, jsonSchema) {
-    const fieldTitles = {};
-    for (const key in jsonData) {
-        //const fullKey = parentKey ? `${parentKey}.${key}` : key;
-        if (jsonSchema.properties && jsonSchema.properties[key]) {
-            if (jsonSchema.properties[key].title) {
-                //fieldTitles[fullKey] = jsonSchema.properties[key].title;
-                fieldTitles[key] = jsonSchema.properties[key].title;
-            }
-            if (jsonSchema.properties[key].type === 'object') {
-                //const nestedTitles = getFieldTitles(jsonData[key], jsonSchema.properties[key], fullKey);
-                const nestedTitles = getFieldTitles(jsonData[key], jsonSchema.properties[key]);
-                Object.assign(fieldTitles, nestedTitles);
-            } else if (jsonSchema.properties[key].type === 'array' && Array.isArray(jsonData[key])) {
-                //const arrayTitles = jsonData[key].map((item, index) => getFieldTitles(item, jsonSchema.properties[key].items, `${fullKey}[${index}]`));
-                const arrayTitles = jsonData[key].map((item, index) => getFieldTitles(item, jsonSchema.properties[key].items));
-                arrayTitles.forEach((titles) => Object.assign(fieldTitles, titles));
-            }
-        }
+        this.data = structuredClone(jsonData);
+        this.schema = structuredClone(jsonSchema);
+
+        // Replace field names with titles
+        this.replaceTextMap = this.#getFieldTitles(this.data, this.schema);
+
+        // Replace field values with titles, where defined
+        this.#replaceFieldValuesWithTitles(this.data, this.schema, this.schema);
+
+        // Replace date-time fields with localized date
+        this.dateFormatMap = this.#getDateFormats(this.data, this.schema);
+
+        // Get header list from top level objects
+        this.headerList = this.#getHeaderList(this.data, this.schema);
+
+        const html = this.jsonToHtml(this.data);
+
+        return {
+            html,
+        };
     }
-    return fieldTitles;
-}
 
-// Function to resolve $ref
-function resolveRef(ref, schema) {
-    const parts = ref.split('/');
-    let current = schema;
-    for (let part of parts) {
-        if (part === '#') continue;
-        current = current[part];
-    }
-    return current;
-}
-
-
-// Function to replace JSON field values with titles from schema recursively
-function replaceFieldValuesWithTitles(jsonData, jsonSchema, rootSchema) {
-    for (const key in jsonData) {
-        if (jsonSchema.properties && jsonSchema.properties[key]) {
-            const propertySchema = jsonSchema.properties[key];
-            if (propertySchema.allOf && propertySchema.allOf.length === 1 && propertySchema.allOf[0].$ref) {
-                const resolvedSchema = resolveRef(propertySchema.allOf[0].$ref, rootSchema);
-                replaceFieldValueWithRef(jsonData, key, resolvedSchema);
-            } else if (propertySchema.oneOf && Array.isArray(propertySchema.oneOf)) {
-                for (const option of propertySchema.oneOf) {
-                    if (option.const === jsonData[key]) {
-                        jsonData[key] = option.title || '';
-                        break;
-                    }
+    // Function to get titles for each field from the JSON schema
+    #getFieldTitles(jsonData, jsonSchema, path = '') {
+        const fieldTitles = {};
+        var mypath;
+        for (const key in jsonData) {
+            mypath = path + '.' + key;
+            if (jsonSchema.properties && jsonSchema.properties[key]) {
+                if (jsonSchema.properties[key].title) {
+                    fieldTitles[mypath.substr(1)] = jsonSchema.properties[key].title;
                 }
-            } else if (propertySchema.type === 'object' && typeof jsonData[key] === 'object') {
-                replaceFieldValuesWithTitles(jsonData[key], propertySchema, rootSchema);
+                if (jsonSchema.properties[key].type === 'object') {
+                    const nestedTitles = this.#getFieldTitles(jsonData[key], jsonSchema.properties[key], mypath);
+                    Object.assign(fieldTitles, nestedTitles);
+                } else if (jsonSchema.properties[key].type === 'array' && Array.isArray(jsonData[key])) {
+                    const arrayTitles = jsonData[key].map((item, index) => this.#getFieldTitles(item, jsonSchema.properties[key].items, mypath));
+                    arrayTitles.forEach((titles) => Object.assign(fieldTitles, titles));
+                }
+            }
+        }
+        return fieldTitles;
+    }
+
+    // Function to replace JSON field values with titles from schema recursively
+    #replaceFieldValuesWithTitles(jsonData, jsonSchema, rootSchema) {
+        for (const key in jsonData) {
+            if (jsonSchema.properties && jsonSchema.properties[key]) {
+                const propertySchema = jsonSchema.properties[key];
+                if (propertySchema.allOf && propertySchema.allOf.length === 1 && propertySchema.allOf[0].$ref) {
+                    const resolvedSchema = this.#resolveRef(propertySchema.allOf[0].$ref, rootSchema);
+                    this.#replaceFieldValueWithRef(jsonData, key, resolvedSchema);
+                } else if (propertySchema.oneOf && Array.isArray(propertySchema.oneOf)) {
+                    for (const option of propertySchema.oneOf) {
+                        if (option.const === jsonData[key]) {
+                            jsonData[key] = option.title || '';
+                            break;
+                        }
+                    }
+                } else if (propertySchema.type === 'object' && typeof jsonData[key] === 'object') {
+                    this.#replaceFieldValuesWithTitles(jsonData[key], propertySchema, rootSchema);
+                }
             }
         }
     }
-}
 
-// Function to replace field value with title from resolved schema
-function replaceFieldValueWithRef(jsonData, key, resolvedSchema) {
-    if (resolvedSchema && resolvedSchema.oneOf && Array.isArray(resolvedSchema.oneOf)) {
-        for (const option of resolvedSchema.oneOf) {
-            if (option.const === jsonData[key]) {
-                jsonData[key] = option.title || '';
-                break;
+    // Function to resolve $ref
+    #resolveRef(ref, schema) {
+        const parts = ref.split('/');
+        let current = schema;
+        for (let part of parts) {
+            if (part === '#') continue;
+            current = current[part];
+        }
+        return current;
+    }
+
+    // Function to replace field value with title from resolved schema
+    #replaceFieldValueWithRef(jsonData, key, resolvedSchema) {
+        if (resolvedSchema && resolvedSchema.oneOf && Array.isArray(resolvedSchema.oneOf)) {
+            for (const option of resolvedSchema.oneOf) {
+                if (option.const === jsonData[key]) {
+                    jsonData[key] = option.title || '';
+                    break;
+                }
             }
         }
     }
-}
 
-// Function to get headerList from top level objects / object arrays
-function getHeaderList(jsonData, jsonSchema) {
-    headerList = [];
-    for (const key in jsonData) {
-        if (jsonSchema.properties && jsonSchema.properties[key]) {
-            const propertySchema = jsonSchema.properties[key];
-            if (propertySchema.type === 'object' && typeof jsonData[key] === 'object') {
-                headerList.push(key);
-            } else if (jsonSchema.properties[key].type === 'array' && Array.isArray(jsonData[key])) {
-                headerList.push(key);
+    // Function to generate header list that replaces object (section) keys with titles from schema recursively
+    #getHeaderList(jsonData, jsonSchema) {
+        var headerList = [];
+        for (const key in jsonData) {
+            if (jsonSchema.properties && jsonSchema.properties[key]) {
+                const propertySchema = jsonSchema.properties[key];
+                if (propertySchema.type === 'object' && typeof jsonData[key] === 'object') {
+                    headerList.push(key);
+                } else if (jsonSchema.properties[key].type === 'array' && Array.isArray(jsonData[key])) {
+                    headerList.push(key);
+                }
             }
         }
+        return headerList;
     }
-    return headerList;
-}
 
+    // Helper function to appropriately decorate <td>'s with json schema date or time data with a data-format attribute
+    // reflecting this.  The displayed data can later be localized in the end-user browser using jquery/javascript.
+    #getDateFormats(jsonData, jsonSchema, path = '') {
+        const fieldDateFormats = {};
+        for (const key in jsonData) {
+            let mypath = path + '.' + key;
+            let pathkey = mypath.substr(1);
+            if (jsonSchema.properties && jsonSchema.properties[key]) {
+                if (jsonSchema.properties[key].format == "date-time") {
+                    fieldDateFormats[pathkey] = "date-time";
+                } else if (jsonSchema.properties[key].format == "time") {
+                    fieldDateFormats[pathkey] = "time";
+                }
+                if (jsonSchema.properties[key].type === 'object') {
+                    const nestedFormats = this.#getDateFormats(jsonData[key], jsonSchema.properties[key], mypath);
+                    Object.assign(fieldDateFormats, nestedFormats);
+                } else if (jsonSchema.properties[key].type === 'array' && Array.isArray(jsonData[key])) {
+                    const arrayFormats = jsonData[key].map((item, index) => this.#getDateFormats(item, jsonSchema.properties[key].items, mypath));
+                    arrayFormats.forEach((dateFormats) => Object.assign(fieldDateFormats, dateFormats));
+                }
+            }
+        }
+        return fieldDateFormats;
+    }
+
+}
 
 module.exports = Jsontableify;
